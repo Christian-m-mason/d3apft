@@ -1,0 +1,222 @@
+<html>
+    <head>
+        <script src="https://moment.github.io/luxon/global/luxon.min.js"></script>
+        <script src="https://d3js.org/d3.v6.min.js"></script>
+
+        <!-- read excel files -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.16.7/xlsx.min.js"></script>
+
+        <meta charset="utf-8" />
+        <title>APFT D3 Summary</title>
+        <script type="text/javascript">
+        
+        // download the XLSX file
+        // use d3 to display an activity chart
+        // X axis - time (make a selector for beginning / end)
+        // Y axis - individual computer IP address on each row        
+            var DateTime = luxon.DateTime;
+            var processedJson = [];
+            
+            function handleSortSelect(selectValue){
+                console.log(selectValue.value)
+                if (processedJson.length > 0) {
+                    d3.selectAll("svg").remove();
+                    sortedJson = sortByVal(processedJson, selectValue.value)
+                    outputStats(sortedJson);
+                    drawD3plot(sortedJson,"PushupScore");
+                    drawD3plot(sortedJson,"SitupScore");
+                    drawD3plot(sortedJson,"RunScore");
+                }
+            }
+
+            function outputStats(jsonIn){
+
+                // get the total points possible
+                // Display totals for pushups / situps and
+                var totalPuPoints = jsonIn.map(record => record.PushupScore)
+                    .reduce((acc, curVal) => acc + curVal);
+
+                var totalSuPoints = jsonIn.map(record => record.SitupScore)
+                    .reduce((acc, curVal) => acc + curVal);
+
+                var totalRunPoints = jsonIn.map(record => record.RunScore)
+                    .reduce((acc, curVal) => acc + curVal);
+
+                var possiblePuPoints = jsonIn.filter(record => record.PushupScore > 0).length * 100
+                var possibleSuPoints = jsonIn.filter(record => record.SitupScore > 0).length * 100
+                var possibleRunPoints = jsonIn.filter(record => record.RunScore > 0).length * 100
+
+                var percentPu = (totalPuPoints / possiblePuPoints * 100).toFixed(1);
+                var percentSu = (totalSuPoints / possibleSuPoints * 100).toFixed(1);
+                var percentRun = (totalRunPoints / possibleRunPoints * 100).toFixed(1);
+                var totalPercent = (Number(percentPu) + Number(percentSu) + Number(percentRun));
+
+                var puProfiles = jsonIn.filter(record => record.PushupScore == 0).length;
+                var suProfiles = jsonIn.filter(record => record.SitupScore == 0).length;
+                var runProfiles = jsonIn.filter(record => record.RunScore == 0).length;
+
+                document.getElementById("outputStats").innerHTML = "Pushup Points: " + totalPuPoints + " / " + possiblePuPoints + " = " 
+                    + percentPu + "%<br/>" + "Situp Points: " + totalSuPoints + " / " + possibleSuPoints + " = " + percentSu + "%<br/>" 
+                    + "Run Points: " + totalRunPoints + " / " + possibleRunPoints + " = " + percentRun + "%<br/><br/>" + "Total Percent: " + totalPercent + "%<br/><br/>"
+                    + "Pushup Profiles: " + puProfiles  + "<br/>" + "Situp Profiles: " + suProfiles + "<br/>" + "Run Profiles: " + runProfiles;
+            }
+
+            function drawD3plot(jsonObj, yVal){
+                var margin = {top: 10, right: 30, bottom: 30, left: 60};
+                var width = document.getElementById("widthVal").value || 1200;
+                var height = document.getElementById("heightVal").value || 200;
+
+                // add the tooltip area to the webpage
+                var tooltip = d3.select("body").append("div")
+                    .attr("class", "tooltip")
+                    .style("opacity", 0);
+
+                var svg = d3.select("body").append("svg")
+                    .attr("width", width)
+                    .attr("height", height)
+                    .append("g")
+                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+                var x = d3.scaleBand()
+                    .domain(jsonObj.map((d,i) => i))
+                    .range([ margin.left, width - margin.right ])
+                    .padding(0.01)
+
+                //svg.append("g")
+                //    .attr("transform", "translate(0," + (height - margin.bottom) + ")")
+                //    .call(d3.axisBottom(x))
+               
+                var y = d3.scaleLinear()
+                    .domain([0,100])
+                    .range([height - margin.bottom, margin.top])
+                    
+                // Add Y axis
+                svg.append("g")
+                    .attr("transform", "translate(" + margin.left + ",0)")
+                    .call(d3.axisLeft(y))
+
+                // add data
+                svg.append("g")
+                    .selectAll("bar")
+                    .data(jsonObj)
+                    .enter()
+                    .append("rect")
+                        .attr("x", (d,i) => x(i))
+                        .attr("y", d => y(d[yVal]))
+                        .attr("width", x.bandwidth())
+                        .attr("height", d => (y(0) - y(d[yVal])))
+                        .style("fill", "#69b3a2")
+                        .on("mouseover", function(event, d) {
+                            tooltip.transition()
+                                .duration(200)
+                                .style("opacity", .9);
+                            tooltip.html(yVal + ": " + d[yVal] + "<br/>" + "Name: " + d.LastName + ", " + d.FirstName)
+                                .style("left", (event.pageX + 5) + "px")
+                                .style("top", (event.pageY - 28) + "px");
+                        })
+                        .on("mouseout", function(d) {
+                            tooltip.transition()
+                                .duration(500)
+                                .style("opacity", 0);
+                        });
+
+                             // set title
+                svg.append("text")
+                    .attr("x", (width / 2))             
+                    .attr("y", (margin.top / 2))
+                    .attr("text-anchor", "middle")  
+                    .style("font-size", "16px") 
+                    .style("text-decoration", "underline")  
+                    .text(yVal);
+            }
+
+            function processInput(jsonIn){
+                jsonIn = jsonIn.map(record => ({
+                    LastName: record.LastName,
+                    FirstName: record.FirstName,
+                    RankShort: record.RankShort,
+                    PushupScore: record.PushupScore,
+                    SitupScore: record.SitupScore,
+                    RunScore: record.RunScore,
+                    IsAlternative: record.IsAlternative,
+                    PassFail: record.PassFail,
+                    parsedLastApft: DateTime.fromJSDate(record['LastApft']),
+                    UnitAssigned: record.UnitAssigned
+                }));
+                return jsonIn;
+            }
+
+            function sortByVal(jsonIn, sortValue) {
+                return jsonIn.sort((a, b) => a[sortValue] - b[sortValue]);
+            }
+
+            function handleFile(e) {
+                var file = e.target.files[0];
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    var data = new Uint8Array(e.target.result);
+                    var workbook = XLSX.read(data, {
+                        type: 'array',
+                        cellDates: true
+                    });
+                    workbook.SheetNames.forEach(function(sheetName) {
+                        // Here is the object
+                        var xlsJson = XLSX.utils.sheet_to_row_object_array(workbook.Sheets[sheetName]);
+                        // make a function that will process the read xls file and output using d3
+                        processedJson = processInput(xlsJson);
+                        outputStats(processedJson)
+                        sortedJson = sortByVal(processedJson, "PushupScore")
+                        drawD3plot(sortedJson,"PushupScore");
+                        drawD3plot(sortedJson,"SitupScore");
+                        drawD3plot(sortedJson,"RunScore");
+                    })
+                };
+                reader.readAsArrayBuffer(file);
+            }
+
+        </script>
+        <style>
+            body {
+                margin: 0px;
+            }
+            .domain {
+                display: none;
+            }
+            .tick line {
+                stroke: #C0C0BB;
+            }
+            .tick text {
+                fill: #8E8883;
+                font-size: 6pt;
+                font-family: sans-serif;
+            }
+            .axis-label {
+                fill: #635F5D;
+                font-size: 6pt;
+                font-family: sans-serif;
+            }
+            .tooltip {
+                position: absolute;
+                width: 200px;
+                height: 28px;
+                pointer-events: none;
+            }
+        </style>
+    </head>
+    <body >
+        <p>Select a DTMS APFT Grid Report XSLX file</p>
+        <input id="xlsxInput" type="file" onchange="handleFile(event)">  
+        <label for="widthVal">Chart Width</label><input id="widthVal" type="text">
+        <label for="heightVal">Chart Height</label><input id="heightVal" type="text">
+        <p id="outputStats" />
+        <p>Select the Sort Value</p>
+        <form name="sortValues">
+            <input type="radio" id="PushupScore" name="sortVal" value="PushupScore" onclick="handleSortSelect(this);" />
+            <label for="PushupScore">PushupScore</label><br>
+            <input type="radio" id="SitupScore" name="sortVal" value="SitupScore" onclick="handleSortSelect(this);" />
+            <label for="SitupScore">SitupScore</label><br>
+            <input type="radio" id="RunScore" name="sortVal" value="RunScore" onclick="handleSortSelect(this);" />
+            <label for="RunScore">RunScore</label>
+        </form>
+    </body>
+</html>
