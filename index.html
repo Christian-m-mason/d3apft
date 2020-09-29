@@ -33,13 +33,13 @@
 
                 // get the total points possible
                 // Display totals for pushups / situps and
-                var totalPuPoints = jsonIn.map(record => record.PushupScore)
+                var totalPuPoints = jsonIn.map(record => Number(record.PushupScore))
                     .reduce((acc, curVal) => acc + curVal);
 
-                var totalSuPoints = jsonIn.map(record => record.SitupScore)
+                var totalSuPoints = jsonIn.map(record => Number(record.SitupScore))
                     .reduce((acc, curVal) => acc + curVal);
 
-                var totalRunPoints = jsonIn.map(record => record.RunScore)
+                var totalRunPoints = jsonIn.map(record => Number(record.RunScore))
                     .reduce((acc, curVal) => acc + curVal);
 
                 var possiblePuPoints = jsonIn.filter(record => record.PushupScore > 0).length * 100
@@ -147,7 +147,7 @@
             }
 
             function sortByVal(jsonIn, sortValue) {
-                return jsonIn.sort((a, b) => a[sortValue] - b[sortValue]);
+                return jsonIn.sort((a, b) => Number(a[sortValue]) - Number(b[sortValue]));
             }
 
             function handleFile(e) {
@@ -162,7 +162,7 @@
                     workbook.SheetNames.forEach(function(sheetName) {
                         // Here is the object
                         var xlsJson = XLSX.utils.sheet_to_row_object_array(workbook.Sheets[sheetName]);
-                        // make a function that will process the read xls file and output using d3
+                        // process the read xls file and output using d3
                         processedJson = processInput(xlsJson);
                         outputStats(processedJson)
                         sortedJson = sortByVal(processedJson, "PushupScore")
